@@ -1,0 +1,4 @@
+usr/include/KF6/KAuth/
+usr/include/KF6/KAuthCore/
+usr/lib/*/cmake/KF6Auth/
+usr/lib/*/libKF6AuthCore.so
