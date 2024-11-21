@@ -1,0 +1,66 @@
+Author: Pino Toscano <pino@kde.org>
+Description: Polkit1Backend: build also w/o Wayland support in KWindowSystem
+ KWindowSystem can be built without Wayland support, and in that case
+ KWaylandExtras is not available. Use __has_include() to detect whether
+ KWaylandExtras is available, and enable the Wayland bits only in that
+ case. KWindowSystem is a required dependency of the Polkit1 backend,
+ so it is possible to assume that the lack of KWaylandExtras means that
+ KWindowSystem was built without Wayland support.
+Forwarded: https://invent.kde.org/frameworks/kauth/-/merge_requests/69
+Last-Update: 2024-08-22
+
+--- a/src/backends/polkit-1/Polkit1Backend.cpp
++++ b/src/backends/polkit-1/Polkit1Backend.cpp
+@@ -11,8 +11,13 @@
+ #include "Polkit1Backend.h"
+ #include "kauthdebug.h"
+ 
+-#include <KWaylandExtras>
+ #include <KWindowSystem>
++#if __has_include(<KWaylandExtras>)
++#define KWINDOWSYSTEM_HAS_WAYLAND
++#endif
++#ifdef KWINDOWSYSTEM_HAS_WAYLAND
++#include <KWaylandExtras>
++#endif
+ 
+ #include <QCoreApplication>
+ #include <QTimer>
+@@ -66,6 +71,7 @@ void Polkit1Backend::preAuthAction(const
+ 
+     // Are we running our KDE auth agent?
+     if (QDBusConnection::sessionBus().interface()->isServiceRegistered(QLatin1String("org.kde.polkit-kde-authentication-agent-1"))) {
++#ifdef KWINDOWSYSTEM_HAS_WAYLAND
+         if (KWindowSystem::isPlatformWayland()) {
+             KWaylandExtras::exportWindow(parentWindow);
+             connect(
+@@ -81,7 +87,9 @@ void Polkit1Backend::preAuthAction(const
+ 
+             // Generate and send an XDG Activation token.
+             sendActivationToken(action, parentWindow);
+-        } else {
++        } else
++#endif
++        {
+             // Retrieve the dialog root window Id
+             const qulonglong wId = parentWindow->winId();
+ 
+@@ -124,6 +132,7 @@ void Polkit1Backend::sendWindowHandle(co
+ 
+ void Polkit1Backend::sendActivationToken(const QString &action, QWindow *window)
+ {
++#ifdef KWINDOWSYSTEM_HAS_WAYLAND
+     const auto requestedSerial = KWaylandExtras::lastInputSerial(window);
+     connect(
+         KWaylandExtras::self(),
+@@ -151,6 +160,10 @@ void Polkit1Backend::sendActivationToken
+         },
+         Qt::SingleShotConnection);
+     KWaylandExtras::requestXdgActivationToken(window, requestedSerial, {});
++#else
++    Q_UNUSED(action);
++    Q_UNUSED(window);
++#endif
+ }
+ 
+ Action::AuthStatus Polkit1Backend::authorizeAction(const QString &action)
